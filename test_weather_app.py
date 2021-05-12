@@ -1,10 +1,12 @@
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 from dotenv import load_dotenv
+from justpy import WebPage
 
-from weather_app import WeatherDataRepository
+from weather_app import WeatherDataRepository, home_page, back_to_home_page, render_result_block, CityWeather, \
+    add_search_input, SearchParams, extract_parameters, get_weather_info
 
 env_path = Path('.') / 'weather_app.env'
 load_dotenv(dotenv_path=env_path)
@@ -62,6 +64,83 @@ class TestWeatherDataRepository(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(weather_response.city_weather)
         self.assertIsNone(weather_response.error)
         self.assertEqual(weather_response.city_weather.city, self.CITY)
+
+
+class TestWeatherUiComponents(unittest.IsolatedAsyncioTestCase):
+    '''Verifying the most critical parts to fail fast. Most of these verifications will be covered by couple of E2E tests
+        implementing search flow'''
+
+    async def test_home_page_should_be_rendered(self):
+        hp = await home_page()
+        self.assertEqual('Please select search criteria:', hp.components[0].components[0].text)
+
+    @patch('weather_app.render_search_page')
+    async def test_back_to_home_page_should_remove_all_elements_and_render_home_page(self, render_sp_mock):
+        msg = Mock()
+        msg.page = Mock(WebPage)
+        await back_to_home_page(None, msg)
+        msg.page.delete_components.assert_called_once()
+        render_sp_mock.assert_called_once_with(msg.page)
+
+    async def test_render_result_should_contain_proper_image(self):
+        wp = WebPage()
+        city_weather = CityWeather(*[None] * 5)
+        city_weather.weather = {'icon': '10n'}
+        city_weather.weatherMetrics = {"temp": None, "feels_like": None, "humidity": None}
+        await render_result_block(wp, city_weather)
+        self.assertEqual(3, len(wp.components))
+        img_component = next(filter(lambda comp: comp.class_name == "Img", wp.components))
+        self.assertTrue('openweathermap.org/img/' in img_component.src)
+
+    async def test_previous_search_block_should_be_removed_when_new_criteria_is_selected(self):
+        msg = Mock()
+        msg.page = Mock(WebPage)
+        search_criteria_div = Mock()
+        msg.page.search_criteria_div = search_criteria_div
+        element = Mock()
+        element.value = SearchParams.zip
+        await add_search_input(element, msg)
+        msg.page.remove.assert_called_once_with(search_criteria_div)
+
+    @patch('weather_app.render_coordinates_search_fields')
+    async def test_search_fields_should_be_rendered_according_to_radio_btn_value(self, render_func):
+        msg = Mock()
+        msg.page = Mock(WebPage)
+        msg.page.search_criteria_div = Mock()
+        element = Mock()
+        element.value = SearchParams.coordinates
+        await add_search_input(element, msg)
+        render_func.assert_called_once()
+
+
+class HelperFunctionsTest(unittest.IsolatedAsyncioTestCase):
+    async def test_extract_parameters_should_return_component_name_and_value(self):
+        component = Mock()
+        component.name = 'test_name'
+        component.value = 'test_value'
+        params = await extract_parameters([component])
+        self.assertEqual(params[component.name], component.value)
+
+    async def test_extract_parameters_should_return_None_on_exception(self):
+        component = True
+        res = await extract_parameters([component])
+        self.assertIsNone(res)
+
+    async def test_get_weather_info_should_return_error_on_empty_input(self):
+        result = await get_weather_info(None, None)
+        self.assertIsNone(result[0])
+        self.assertEqual("Internal error", result[1])
+
+    @patch('weather_app.WeatherDataRepository')
+    async def test_get_weather_info_should_choose_api_call_based_on_criteria(self, weather_repo):
+        mock_repo = Mock(WeatherDataRepository)
+        weather_repo.return_value = mock_repo
+        expected_return_value = "Roman's city"
+        mock_repo.get_by_city_name.return_value = expected_return_value
+        input_values = {"city": None, "state": None, "country": None}
+        result = await get_weather_info(SearchParams.city, input_values)
+        self.assertEqual(result, expected_return_value)
+        mock_repo.get_by_city_name.assert_called_once_with(*[None] * 3)
 
 
 if __name__ == '__main__':
