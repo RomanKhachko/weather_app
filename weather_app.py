@@ -75,13 +75,8 @@ class SearchParams:
 
 
 async def home_page():
-    # change title and icon
-    # provide html + nice stiles for 3 rtadio buttons
-    # clicking into each radio button should provide search criteria (input field) and show submit button
-    # clicking submit should call submit handler which will do search and print submit results (model)
-    # Button new search should render the initial page again
-
     wp = jp.WebPage()
+    wp.title = "weather app by Roman Khachko"
     await render_search_page(wp)
     return wp
 

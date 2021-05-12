@@ -1,2 +1,2 @@
 *.log
-*.env
+weather_app.env
