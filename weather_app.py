@@ -8,10 +8,11 @@ from urllib.parse import urlencode
 import justpy as jp
 
 
-def config_logger():
+def configure_logger():
     rotating_file_handler = RotatingFileHandler(filename='weather_app.log', backupCount=2, maxBytes=2 * 10 ** 6)
     handlers = [logging.StreamHandler(), rotating_file_handler]
-    logging.basicConfig(format='%(asctime)s %(message)s', encoding='utf-8', level=logging.INFO, handlers=handlers)
+    logging.basicConfig(force=True, format='{asctime} - {levelname} - {message}', style='{', level=logging.INFO,
+                        handlers=handlers)
 
 
 WeatherDataResponse = namedtuple('WeatherDataResponse', ['city_weather', 'error'])
@@ -195,6 +196,6 @@ async def render_search_page(wp):
 
 
 if __name__ == '__main__':
-    config_logger()
+    configure_logger()
     logging.info('Staring application')
     jp.justpy(home_page)
